@@ -1,20 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
+import 'package:videomeetingapp/tokenservices.dart';
 import 'package:videosdk/videosdk.dart';
-
+import 'dart:math';
 
 class CreateMeeting extends StatefulWidget {
   late Map<String, Participant> participants;
-  CreateMeeting({super.key,required this.participants});
+  CreateMeeting({super.key, required this.participants});
   @override
   _CreateMeetingState createState() => _CreateMeetingState();
 }
 
-
 class _CreateMeetingState extends State<CreateMeeting> {
-
-  String _meetingCode = "9wvy-oyba-yiyq";
-
+  String _meetingCode = "";
   Room? _room;
   Map<String, Participant> participants = {};
   String? createdRoomId;
@@ -22,21 +19,40 @@ class _CreateMeetingState extends State<CreateMeeting> {
   @override
   void initState() {
     super.initState();
-    createRoom();
+    _meetingCode = _generateMeetingCode();
+    fetchTokenAndCreateRoom();
   }
 
-  void createRoom() {
+  String _generateMeetingCode() {
+    const length = 12;
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+    Random rnd = Random();
+    return List.generate(length, (index) => chars[rnd.nextInt(chars.length)])
+        .join()
+        .replaceAllMapped(RegExp(r".{4}"), (match) => "${match.group(0)}-")
+        .substring(0, 14);
+  }
+
+  void fetchTokenAndCreateRoom() async {
+    try {
+      String token = await TokenService.getToken();
+      createRoom(token);
+    } catch (error) {
+      print('Error fetching token: $error');
+    }
+  }
+
+  void createRoom(String token) {
     _room = VideoSDK.createRoom(
-      token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJhcGlrZXkiOiI4MmRiNWViNS0wYjZjLTQ2OGMtYTY4MS05MTUwMDllZThmNjkiLCJwZXJtaXNzaW9ucyI6WyJhbGxvd19qb2luIl0sImlhdCI6MTcxOTUxNTM1MCwiZXhwIjoxNzE5NjAxNzUwfQ.xATydJyyc7VY8trtsONWxHkOpqOUJm5U97A1guOFGkw",
+      token: token,
       displayName: "Ankit",
       micEnabled: true,
       camEnabled: true,
       defaultCameraIndex: 1,
-      roomId: '9wvy-oyba-yiyq', // Index of MediaDevices will be used to set default camera
+      roomId: _meetingCode,
     );
 
     setRoomEventListener();
-
     _room?.join();
 
     setState(() {
@@ -69,40 +85,43 @@ class _CreateMeetingState extends State<CreateMeeting> {
   }
 
   Future<bool> _onWillPop() async {
-    _room?.leave();
-    return true;
+    return (await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Are you sure?'),
+        content: Text('Do you want to leave the meeting?'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('Yes'),
+          ),
+        ],
+      ),
+    )) ??
+        false;
   }
 
   @override
   Widget build(BuildContext context) {
     return WillPopScope(
-      onWillPop: () => _onWillPop(),
-      child:
-      Scaffold(
-        body: SafeArea(
-          child: Column(
-            children: [
-              Align(
-                alignment: Alignment.topLeft,
-                child: InkWell(
-                  child: Icon(Icons.arrow_back_ios_new_sharp, size: 35),
-                  onTap: Get.back,
-                ),
-              ),
-              SizedBox(height: 50),
-              Image.network(
-                "https://user-images.githubusercontent.com/67534990/127776392-8ef4de2d-2fd8-4b5a-b98b-ea343b19c03e.png",
-                fit: BoxFit.cover,
-                height: 125,
-              ),
-              SizedBox(height: 20),
-              Text(
-                "Copy meeting code below",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(15, 20, 15, 0),
-                child: Card(
+      onWillPop: _onWillPop,
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text("Create a Meeting"),
+        ),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(15, 20, 15, 0),
+                  child: Card(
                     color: Colors.grey[300],
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(25),
@@ -111,44 +130,49 @@ class _CreateMeetingState extends State<CreateMeeting> {
                       leading: Icon(Icons.link),
                       title: SelectableText(
                         _meetingCode,
-                        style: TextStyle(fontWeight: FontWeight.w300,fontSize: 20),
+                        style: TextStyle(fontWeight: FontWeight.w300, fontSize: 20),
                       ),
                       trailing: Icon(Icons.copy),
-                    )),
-              ),
-              Divider(thickness: 1, height: 40, indent: 20, endIndent: 20),
-              ElevatedButton.icon(
-                onPressed: () {
-                  // Share.share("Meeting Code : $_meetingCode");
-                },
-                icon: Icon(Icons.arrow_drop_down),
-                label: Text("Share invite",style: TextStyle(color: Colors.white, fontSize: 20),),
-                style: ElevatedButton.styleFrom(
-                  fixedSize: Size(350, 30),
-                  backgroundColor: Colors.indigo,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25)),
+                    ),
+                  ),
                 ),
-              ),
-              SizedBox(height: 20),
-              OutlinedButton.icon(
-                onPressed: () {
-                  createRoom();
-                },
-                icon: Icon(Icons.video_call,size: 25,),
-                label: Text("start call",style: TextStyle(fontSize: 20),),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.indigo,
-                  side: BorderSide(color: Colors.indigo),
-                  fixedSize: Size(350, 35),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25)),
+                Divider(thickness: 1, height: 40, indent: 20, endIndent: 20),
+                ElevatedButton.icon(
+                  onPressed: () {
+                    // Share.share("Meeting Code : $_meetingCode");
+                  },
+                  icon: Icon(Icons.arrow_drop_down),
+                  label: Text("Share invite", style: TextStyle(color: Colors.white, fontSize: 20)),
+                  style: ElevatedButton.styleFrom(
+                    fixedSize: Size(350, 30),
+                    backgroundColor: Colors.indigo,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
                 ),
-              ),
-            ],
+                SizedBox(height: 20),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    String token = await TokenService.getToken();
+                    createRoom(token);
+                  },
+                  icon: Icon(Icons.video_call, size: 25),
+                  label: Text("start call", style: TextStyle(fontSize: 20)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.indigo,
+                    side: BorderSide(color: Colors.indigo),
+                    fixedSize: Size(350, 35),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(25),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-      )
+      ),
     );
   }
 }

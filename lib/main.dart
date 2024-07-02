@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:videomeetingapp/loadding_screen.dart';
-import 'package:videomeetingapp/enter_code_screen.dart';
 
 void main() {
   runApp(const MyApp());
